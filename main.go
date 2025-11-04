@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/djwhocodes/ecom_cart_golang/controllers"
+	"github.com/djwhocodes/ecom_cart_golang/database"
 	"github.com/djwhocodes/ecom_cart_golang/middleware"
 	"github.com/djwhocodes/ecom_cart_golang/routes"
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,7 @@ func main() {
 		port = "8080"
 	}
 
-	app := controllers.NewApplication(database.ProductData(database.Client, "Products"), database.UserData(database))
+	app := controllers.NewApplication(database.ProductData(database.Client, "Products"), database.UserData(database.Client, "User"))
 
 	router := gin.Default()
 

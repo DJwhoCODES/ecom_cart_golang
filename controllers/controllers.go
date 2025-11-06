@@ -13,8 +13,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var productCollection *mongo.Collection = database.ProductData(database.Client, "product")
 
 func HashPassword(password string) string {
 	bytes, _ := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -173,7 +176,34 @@ func ProductViewerAdmin() gin.HandlerFunc {
 
 func SearchProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var productList []models.Product
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
+		cursor, err := productCollection.Find(ctx, bson.M{})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error fetching products from database",
+			})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		if err = cursor.All(ctx, &productList); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error decoding product data",
+			})
+			return
+		}
+
+		if len(productList) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "No products found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, productList)
 	}
 }
 

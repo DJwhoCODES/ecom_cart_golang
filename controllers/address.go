@@ -66,13 +66,125 @@ func AddAddress() gin.HandlerFunc {
 
 func EditHomeAddress() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.Query("id")
+		addressID := c.Query("address_id")
 
+		if userID == "" || addressID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Both user ID and address ID are required",
+			})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		userObjID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		addressObjID, err := primitive.ObjectIDFromHex(addressID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address ID"})
+			return
+		}
+
+		var updatedAddress models.Address
+		if err := c.BindJSON(&updatedAddress); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address data"})
+			return
+		}
+
+		update := bson.M{
+			"$set": bson.M{
+				"address_details.$.house":   updatedAddress.House,
+				"address_details.$.street":  updatedAddress.Street,
+				"address_details.$.city":    updatedAddress.City,
+				"address_details.$.pincode": updatedAddress.Pincode,
+			},
+		}
+
+		filter := bson.M{
+			"_id":                 userObjID,
+			"address_details._id": addressObjID,
+		}
+
+		result, err := userCollection.UpdateOne(ctx, filter, update)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating home address"})
+			return
+		}
+
+		if result.MatchedCount == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "No matching address found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Home address updated successfully"})
 	}
 }
 
 func EditWorkAddress() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.Query("id")
+		addressID := c.Query("address_id")
 
+		if userID == "" || addressID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Both user ID and address ID are required",
+			})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		userObjID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		addressObjID, err := primitive.ObjectIDFromHex(addressID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address ID"})
+			return
+		}
+
+		var updatedAddress models.Address
+		if err := c.BindJSON(&updatedAddress); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address data"})
+			return
+		}
+
+		update := bson.M{
+			"$set": bson.M{
+				"address_details.$.house":   updatedAddress.House,
+				"address_details.$.street":  updatedAddress.Street,
+				"address_details.$.city":    updatedAddress.City,
+				"address_details.$.pincode": updatedAddress.Pincode,
+			},
+		}
+
+		filter := bson.M{
+			"_id":                 userObjID,
+			"address_details._id": addressObjID,
+		}
+
+		result, err := userCollection.UpdateOne(ctx, filter, update)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating home address"})
+			return
+		}
+
+		if result.MatchedCount == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "No matching address found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Home address updated successfully"})
 	}
 }
 

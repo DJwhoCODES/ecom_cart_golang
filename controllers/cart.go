@@ -8,6 +8,7 @@ import (
 
 	"github.com/djwhocodes/ecom_cart_golang/database"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -147,5 +148,56 @@ func (app *Application) InstantBuy() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "product purchased successfully"})
+	}
+}
+
+func GetItemFromCart() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.Query("id")
+		if userID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		userObjID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "_id", Value: userObjID}}}}
+		unwindStage := bson.D{{Key: "$unwind", Value: "$user_cart"}}
+		groupStage := bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id"},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$user_cart.price"}}},
+			{Key: "cart_items", Value: bson.D{{Key: "$push", Value: "$user_cart"}}},
+		}}}
+
+		cursor, err := userCollection.Aggregate(ctx, mongo.Pipeline{matchStage, unwindStage, groupStage})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching cart data"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		var cartResult []bson.M
+		if err = cursor.All(ctx, &cartResult); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding cart data"})
+			return
+		}
+
+		if len(cartResult) == 0 {
+			c.JSON(http.StatusOK, gin.H{"message": "Cart is empty"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"user_id": userID,
+			"cart":    cartResult[0]["cart_items"],
+			"total":   cartResult[0]["total"],
+		})
 	}
 }

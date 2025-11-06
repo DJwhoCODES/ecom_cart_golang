@@ -17,7 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var productCollection *mongo.Collection = database.ProductData(database.Client, "product")
+var ProductCollection *mongo.Collection = database.ProductData(database.Client, "product")
 
 func HashPassword(password string) string {
 	bytes, _ := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -180,7 +180,7 @@ func SearchProduct() gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		cursor, err := productCollection.Find(ctx, bson.M{})
+		cursor, err := ProductCollection.Find(ctx, bson.M{})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Error fetching products from database",
@@ -209,6 +209,48 @@ func SearchProduct() gin.HandlerFunc {
 
 func SearchProductByQuery() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		query := c.Query("name")
+		if query == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Query parameter 'name' is required",
+			})
+			return
+		}
 
+		var productList []models.Product
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		filter := bson.M{
+			"name": bson.M{
+				"$regex":   query,
+				"$options": "i",
+			},
+		}
+
+		cursor, err := ProductCollection.Find(ctx, filter)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error searching for products",
+			})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		if err = cursor.All(ctx, &productList); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error decoding product data",
+			})
+			return
+		}
+
+		if len(productList) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "No matching products found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, productList)
 	}
 }
